@@ -1,0 +1,6 @@
+<resources>
+    <color name="control_one">#FF006699</color>
+    <color name="control_two">#FF009933</color>
+    <color name="control_one_opaque">#66006699</color>
+    <color name="control_two_opaque">#66009933</color>
+</resources>
