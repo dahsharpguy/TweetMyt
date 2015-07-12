@@ -23,4 +23,5 @@ dependencies {
     compile fileTree(include: ['*.jar'], dir: 'libs')
     compile 'com.android.support:appcompat-v7:22.0.0'
     compile files('src/main/java/com/twitter4j-core-4.0.4.jar')
+    compile files('src/main/java/com/twitter4j-core-2.2.5.jar')
 }

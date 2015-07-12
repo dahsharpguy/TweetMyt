@@ -1,16 +1,25 @@
 package com.sordsman.tweetmyt;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.DatabaseUtils;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.BaseColumns;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.util.Log;
 import android.widget.Button;
+import android.widget.ListView;
 
+import twitter4j.ProfileImage;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
@@ -37,6 +46,25 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
 
     /*error logging*/
     private String LOG_TAG = "TweetMytActivity";
+
+    /* main view for the home timeline*/
+    private ListView homeTimeline;
+    /*database helper for update data*/
+    private MytDataHelper timelineHelper;
+    /*update database*/
+    private SQLiteDatabase timelineDB;
+    /*adapter for mapping data*/
+    private UpdateAdapter timelineAdapter;
+
+    /*specify image size*/
+    ProfileImage.ImageSize imageSize = ProfileImage.NORMAL;
+
+    /*Broadcast receiver for when new updates are available*/
+    private BroadcastReceiver mytStatusReceiver;
+
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -139,7 +167,7 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
                 sharedPreferences.edit()
                         .putString("user_token", accessToken.getToken())
                         .putString("user_secret", accessToken.getTokenSecret())
-                        .commit();
+                        .apply();
 
                 /*display timeline*/
                 setupTimeline();
@@ -149,4 +177,71 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
         }
     }
 
+    private void setupTimeline(){
+        setContentView(R.layout.timeline);
+
+        try {
+            /*get reference to the list view*/
+            homeTimeline = (ListView)findViewById(R.id.homeList);
+            /*instantiate database helper*/
+            timelineHelper = new MytDataHelper(this);
+            /*get the database*/
+            timelineDB = timelineHelper.getReadableDatabase();
+            /*query the database, most recent tweets first*/
+            Cursor timelineCursor = timelineDB.query("tweet", null, null, null, null, null, "update_time DESC");
+            startManagingCursor(timelineCursor);
+            /*this will make the app populate the new update data in the timeline
+            * view*/
+            homeTimeline.setAdapter(timelineAdapter);
+            /*instantiate receiver class for finding out when new updates are available*/
+            mytStatusReceiver = new TwitterUpdateReceiver();
+            /*register for updates*/
+            registerReceiver(mytStatusReceiver, new IntentFilter("TWITTER_UPDATES"));
+
+            /*start the service for updates now*/
+            this.getApplicationContext().startService(new Intent(this.getApplicationContext(), TimeLineService.class));
+
+        }catch (Exception e){
+            Log.e(LOG_TAG, "Failed to fetch timeline: " + e);
+        }
+    }
+
+    class TwitterUpdateReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            /*delete records from database when others come in*/
+            int rowLimit = 100;
+            if (DatabaseUtils.queryNumEntries(timelineDB, "tweet")>rowLimit) {
+                String deleteQuery = "DELETE FROM tweet WHERE "+ BaseColumns._ID+" NOT IN "+
+                        "(SELECT "+BaseColumns._ID+" From tweet ORDER BY"+"update_time DESC"+
+                        "limit "+rowLimit+")";
+                timelineDB.execSQL(deleteQuery);
+
+                /*query the database and update the user interface*/
+                Cursor timelineCursor = timelineDB.query("tweet", null, null, null, null, null, "update_time DESC");
+                startManagingCursor(timelineCursor);
+                timelineAdapter = new UpdateAdapter(context, timelineCursor);
+                homeTimeline.setAdapter(timelineAdapter);
+
+            }
+        }
+
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try{
+            /*stop the updater service*/
+            stopService(new Intent(this, TimeLineService.class));
+            /*remove receiver register*/
+            unregisterReceiver(mytStatusReceiver);
+            /*close the database*/
+            timelineDB.close();
+        }
+        catch (Exception se){
+            Log.e(LOG_TAG, "unable to stop Service or receiver");
+        }
+    }
 }
