@@ -1,6 +1,7 @@
 package com.sordsman.tweetmyt;
 
 import android.app.Activity;
+import android.app.IntentService;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -17,6 +18,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 
 import twitter4j.ProfileImage;
@@ -71,38 +73,53 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
         super.onCreate(savedInstanceState);
 //        setContentView(R.layout.activity_main);
 
-        /*getting preferences for the app*/
-        sharedPreferences = getSharedPreferences("TweetMytPrefs", 0);
+        class RunBackgroundStuff extends IntentService{
+
+            /**
+             * Creates an IntentService.  Invoked by your subclass's constructor.
+             *
+             * @param name Used to name the worker thread, important only for debugging.
+             */
+            public RunBackgroundStuff(String name) {
+                super(name);
+            }
+
+            @Override
+            protected void onHandleIntent(Intent intent) {
+                /*getting preferences for the app*/
+                sharedPreferences = getSharedPreferences("TweetMytPrefs", 0);
 
         /*find out if user preferences are set*/
-        if(sharedPreferences.getString("user_token", null)==null){
+                if(sharedPreferences.getString("user_token", null)==null){
             /*prompt to sign in*/
-            setContentView(R.layout.activity_main);
+                    setContentView(R.layout.activity_main);
 
             /*get twitter instance for authentication */
-            niceTwitter = new TwitterFactory().getInstance();
+                    niceTwitter = new TwitterFactory().getInstance();
 
             /*pass developer key and secret*/
-            niceTwitter.setOAuthConsumer(TWIT_KEY, TWIT_SECRET);
+                    niceTwitter.setOAuthConsumer(TWIT_KEY, TWIT_SECRET);
 
             /*try to get request token*/
-            try{
+                    try{
                 /*get authentication token*/
-                niceRequestToken = niceTwitter.getOAuthRequestToken(TWIT_URL);
-            } catch (TwitterException te){
-                Log.e(LOG_TAG, "TE " + te.getMessage());
-            }
+                        niceRequestToken = niceTwitter.getOAuthRequestToken(TWIT_URL);
+                    } catch (TwitterException te){
+                        Log.e(LOG_TAG, "TE " + te.getMessage());
+                    }
 
             /*setup button for click listener*/
 
-            Button signIn = (Button)findViewById(R.id.signin);
-            signIn.setOnClickListener(this);
+                    Button signIn = (Button)findViewById(R.id.signin);
+                    signIn.setOnClickListener((View.OnClickListener) this);
 
-        } else {
+                } else {
             /* user preferences already set - get timeline*/
-            setupTimeline();
-        }
+                    setupTimeline();
+                }
 
+            }
+        }
 
     }
 
@@ -140,6 +157,11 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
                 break;
 
             /*other listeners*/
+            /*user had pressed tweet button*/
+            case R.id.tweetbtn:
+                /*launch tweet activity*/
+                startActivity(new Intent(this, MytTweet.class));
+                break;
             default:
                 break;
         }
@@ -179,6 +201,8 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
 
     private void setupTimeline(){
         setContentView(R.layout.timeline);
+        LinearLayout tweetClicker = (LinearLayout)findViewById(R.id.tweetbtn);
+        tweetClicker.setOnClickListener(this);
 
         try {
             /*get reference to the list view*/
@@ -244,4 +268,6 @@ public class TweetMytActivity extends Activity implements View.OnClickListener {
             Log.e(LOG_TAG, "unable to stop Service or receiver");
         }
     }
+
+
 }
